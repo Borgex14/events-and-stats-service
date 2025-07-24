@@ -46,7 +46,6 @@ public class StatsServiceImpl implements StatsService {
         if (end.isAfter(LocalDateTime.now().plusYears(1))) {
             throw new ValidationException("End date too far in the future");
         }
-        // Добавляем логирование для отладки
         log.info("Getting stats for: start={}, end={}, uris={}, unique={}", start, end, uris, unique);
 
         List<EndpointHitStatsProjection> resultList;
@@ -56,7 +55,6 @@ public class StatsServiceImpl implements StatsService {
                     statsRepository.findAllNotUrisTrueUnique(start, end) :
                     statsRepository.findAllNotUrisFalseUnique(start, end);
         } else {
-            // Преобразуем URI перед поиском
             List<String> searchUris = uris.stream()
                     .map(this::normalizeUri)
                     .collect(Collectors.toList());
@@ -74,26 +72,28 @@ public class StatsServiceImpl implements StatsService {
                         .uri(stat.getUri())
                         .hits(stat.getHits())
                         .build())
-                .sorted(Comparator.comparingLong(StatDtoResponse::getHits).reversed())
+                .sorted((a, b) -> b.getHits().compareTo(a.getHits()))
                 .collect(Collectors.toList());
     }
 
     private String normalizeUri(String uri) {
         if (uri == null) return null;
 
+        if (uri.equals("/events")) {
+            return uri;
+        }
+
         if (uri.startsWith("/events/")) {
             String[] parts = uri.split("/");
             if (parts.length >= 3) {
                 String idPart = parts[2];
                 try {
-                    // Преобразование UUID в числовой ID
                     UUID uuid = UUID.fromString(idPart);
                     int numericId = uuid.hashCode() & Integer.MAX_VALUE;
                     return "/events/" + numericId;
                 } catch (IllegalArgumentException e) {
-                    // Если не UUID, проверяем числовой ID
                     if (idPart.matches("\\d+")) {
-                        return uri; // Оставляем как есть для числовых ID
+                        return uri;
                     }
                     throw new ValidationException("Invalid event ID format: " + idPart);
                 }

@@ -21,6 +21,7 @@ public class StatsController {
     private final StatsService statsService;
 
     @PostMapping("/hit")
+    @ResponseStatus(HttpStatus.CREATED)
     public void createHit(@Valid @RequestBody EndpointHitDtoRequest dto) {
         log.info("Creating hit for URI: {}", dto.getUri());
         statsService.create(dto);

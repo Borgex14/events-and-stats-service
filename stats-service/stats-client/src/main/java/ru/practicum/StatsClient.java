@@ -15,6 +15,8 @@ import ru.StatDtoResponse;
 import ru.practicum.exception.InternalErrorException;
 import ru.practicum.exception.ValidationException;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -32,18 +34,10 @@ public class StatsClient {
     public ResponseEntity<List<StatDtoResponse>> getStats(LocalDateTime start, LocalDateTime end,
                                                           List<String> uris, Boolean unique) {
         try {
-            if (start == null || end == null) {
-                throw new ValidationException("Start and end dates are required");
-            }
-
-            if (start.isAfter(end)) {
-                throw new ValidationException("Start date must be before end date");
-            }
-
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(serverUrl)
                     .path("/stats")
-                    .queryParam("start", start)
-                    .queryParam("end", end);
+                    .queryParam("start", URLEncoder.encode(start.toString(), StandardCharsets.UTF_8))
+                    .queryParam("end", URLEncoder.encode(end.toString(), StandardCharsets.UTF_8));
 
             if (uris != null && !uris.isEmpty()) {
                 builder.queryParam("uris", String.join(",", uris));
@@ -54,10 +48,10 @@ public class StatsClient {
             }
 
             return restTemplate.exchange(
-                    builder.toUriString(),
+                    builder.build().toUri(),
                     HttpMethod.GET,
                     null,
-                    new ParameterizedTypeReference<List<StatDtoResponse>>() {}
+                    new ParameterizedTypeReference<>() {}
             );
         } catch (Exception e) {
             throw new InternalErrorException("Error getting stats: " + e.getMessage());
