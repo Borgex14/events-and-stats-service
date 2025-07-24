@@ -27,19 +27,19 @@ services:
     ports:
       - "5432:5432"
 
-  main-service:
+  ewm-service:
     build: main-service
-    container_name: main-service
+    container_name: ewm-service
     ports:
       - "8080:8080"
     depends_on:
-      - main-db
+      - ewm-db
     environment:
-        - SPRING_DATASOURCE_URL=jdbc:postgresql://main-db:5432/main_db
+        - SPRING_DATASOURCE_URL=jdbc:postgresql://main-db:5432/ewm_db
         - SPRING_DATASOURCE_USERNAME=main
         - SPRING_DATASOURCE_PASSWORD=main
 
-  main-db:
+  ewm-db:
     image: postgres:14-alpine
     container_name: main-db
     environment:
