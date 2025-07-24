@@ -13,7 +13,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 import ru.EndpointHitDtoRequest;
 import ru.StatDtoResponse;
 import ru.practicum.exception.InternalErrorException;
-import ru.practicum.exception.ValidationException;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
