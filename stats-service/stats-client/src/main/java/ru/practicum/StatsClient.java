@@ -46,12 +46,18 @@ public class StatsClient {
                 builder.queryParam("unique", unique);
             }
 
-            return restTemplate.exchange(
+            ResponseEntity<List<StatDtoResponse>> response = restTemplate.exchange(
                     builder.build().toUri(),
                     HttpMethod.GET,
                     null,
                     new ParameterizedTypeReference<>() {}
             );
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new InternalErrorException("Failed to get stats: " + response.getStatusCode());
+            }
+
+            return response;
         } catch (Exception e) {
             throw new InternalErrorException("Error getting stats: " + e.getMessage());
         }
@@ -63,12 +69,16 @@ public class StatsClient {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<EndpointHitDtoRequest> entity = new HttpEntity<>(dto, headers);
 
-            restTemplate.exchange(
+            ResponseEntity<Void> response = restTemplate.exchange(
                     serverUrl + "/hit",
                     HttpMethod.POST,
                     entity,
                     Void.class
             );
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new InternalErrorException("Failed to save hit: " + response.getStatusCode());
+            }
         } catch (Exception e) {
             throw new InternalErrorException("Error saving hit: " + e.getMessage());
         }

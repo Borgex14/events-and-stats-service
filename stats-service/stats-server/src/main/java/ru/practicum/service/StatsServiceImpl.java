@@ -1,6 +1,5 @@
 package ru.practicum.service;
 
-import jakarta.validation.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -8,11 +7,14 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.EndpointHitDtoRequest;
 import ru.EndpointHitStatsProjection;
 import ru.StatDtoResponse;
+import ru.practicum.exception.InternalErrorException;
+import ru.practicum.exception.ValidationException;
 import ru.practicum.mapper.EndpointDtoMapper;
 import ru.practicum.model.EndpointHit;
 import ru.practicum.storage.StatsRepository;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -27,59 +29,78 @@ public class StatsServiceImpl implements StatsService {
     @Override
     @Transactional
     public void create(EndpointHitDtoRequest dto) {
-        String normalizedUri = normalizeUri(dto.getUri());
-        EndpointHit hit = EndpointDtoMapper.mapDtoToEntity(dto);
-        hit.setUri(normalizedUri);
-        hit.setTimestamp(LocalDateTime.now());
-        statsRepository.save(hit);
+        try {
+            if (dto == null || dto.getApp() == null || dto.getUri() == null || dto.getIp() == null) {
+                throw new ValidationException("Invalid hit data");
+            }
+
+            String normalizedUri = normalizeUri(dto.getUri());
+            EndpointHit hit = EndpointDtoMapper.mapDtoToEntity(dto);
+            hit.setUri(normalizedUri);
+            hit.setTimestamp(LocalDateTime.now());
+            statsRepository.save(hit);
+        } catch (Exception e) {
+            log.error("Error saving hit", e);
+            throw new InternalErrorException("Error saving hit: " + e.getMessage());
+        }
     }
 
     @Override
     public List<StatDtoResponse> getStats(LocalDateTime start, LocalDateTime end,
                                           List<String> uris, Boolean unique) {
+        try {
+            log.info("Getting stats from {} to {}, uris: {}, unique: {}", start, end, uris, unique);
 
-        if (start.isAfter(LocalDateTime.now())) {
-            throw new ValidationException("Start date cannot be in the future");
-        }
+            if (start == null || end == null) {
+                throw new ValidationException("Start and end dates must be specified");
+            }
 
-        if (end.isAfter(LocalDateTime.now().plusYears(1))) {
-            throw new ValidationException("End date too far in the future");
-        }
+            if (start.isAfter(end)) {
+                throw new ValidationException("Start date must be before end date");
+            }
 
-        log.info("Getting stats for: start={}, end={}, uris={}, unique={}", start, end, uris, unique);
+            List<EndpointHitStatsProjection> stats;
 
-        List<EndpointHitStatsProjection> resultList;
+            if (uris == null || uris.isEmpty()) {
+                stats = Boolean.TRUE.equals(unique) ?
+                        statsRepository.findAllNotUrisTrueUnique(start, end) :
+                        statsRepository.findAllNotUrisFalseUnique(start, end);
+            } else {
+                List<String> normalizedUris = uris.stream()
+                        .map(this::normalizeUri)
+                        .filter(uri -> uri != null && !uri.isEmpty())
+                        .collect(Collectors.toList());
 
-        if (uris == null || uris.isEmpty()) {
-            resultList = Boolean.TRUE.equals(unique) ?
-                    statsRepository.findAllNotUrisTrueUnique(start, end) :
-                    statsRepository.findAllNotUrisFalseUnique(start, end);
-        } else {
-            List<String> searchUris = uris.stream()
-                    .map(this::normalizeUri)
+                if (normalizedUris.isEmpty()) {
+                    return List.of();
+                }
+
+                stats = Boolean.TRUE.equals(unique) ?
+                        statsRepository.findAllWithUrisTrueUnique(start, end, normalizedUris) :
+                        statsRepository.findAllWithUrisFalseUnique(start, end, normalizedUris);
+            }
+
+            return stats.stream()
+                    .map(projection -> new StatDtoResponse(
+                            projection.getApp(),
+                            projection.getUri(),
+                            projection.getHits()))
+                    .sorted(Comparator.comparingLong(StatDtoResponse::getHits).reversed())
                     .collect(Collectors.toList());
-
-            log.info("Searching for normalized URIs: {}", searchUris);
-
-            resultList = Boolean.TRUE.equals(unique) ?
-                    statsRepository.findAllWithUrisTrueUnique(start, end, searchUris) :
-                    statsRepository.findAllWithUrisFalseUnique(start, end, searchUris);
+        } catch (ValidationException e) {
+            throw e; // Re-throw validation exceptions
+        } catch (Exception e) {
+            log.error("Error getting stats", e);
+            throw new InternalErrorException("Error getting stats: " + e.getMessage());
         }
-
-        return resultList.stream()
-                .map(stat -> StatDtoResponse.builder()
-                        .app(stat.getApp())
-                        .uri(stat.getUri())
-                        .hits(stat.getHits())
-                        .build())
-                .sorted((a, b) -> b.getHits().compareTo(a.getHits()))
-                .collect(Collectors.toList());
     }
 
     private String normalizeUri(String uri) {
-        if (uri == null) return null;
+        if (uri == null || uri.isEmpty()) {
+            return uri;
+        }
 
-        if (uri.equals("/events")) {
+        if ("/events".equals(uri)) {
             return uri;
         }
 
@@ -92,14 +113,10 @@ public class StatsServiceImpl implements StatsService {
                     int numericId = uuid.hashCode() & Integer.MAX_VALUE;
                     return "/events/" + numericId;
                 } catch (IllegalArgumentException e) {
-                    if (idPart.matches("\\d+")) {
-                        return uri;
-                    }
-                    throw new ValidationException("Invalid event ID format: " + idPart);
+                    return uri;
                 }
             }
         }
-
         return uri;
     }
 }

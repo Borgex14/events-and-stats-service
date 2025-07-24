@@ -1,10 +1,12 @@
 package ru.practicum.controller;
 
 import jakarta.validation.Valid;
+import jakarta.validation.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.EndpointHitDtoRequest;
 import ru.StatDtoResponse;
@@ -28,14 +30,13 @@ public class StatsController {
     }
 
     @GetMapping("/stats")
-    public List<StatDtoResponse> getStats(
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime start,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime end,
+    public ResponseEntity<List<StatDtoResponse>> getStats(
+            @RequestParam LocalDateTime start,
+            @RequestParam LocalDateTime end,
             @RequestParam(required = false) List<String> uris,
-            @RequestParam(required = false, defaultValue = "false") Boolean unique) {
+            @RequestParam(required = false) Boolean unique) {
 
-        log.info("Request stats: start={}, end={}, uris={}, unique={}", start, end, uris, unique);
-
-        return statsService.getStats(start, end, uris, unique);
+        List<StatDtoResponse> stats = statsService.getStats(start, end, uris, unique);
+        return ResponseEntity.ok(stats);
     }
 }
