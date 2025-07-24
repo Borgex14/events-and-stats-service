@@ -1,5 +1,6 @@
 package ru.practicum.service;
 
+import jakarta.validation.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -8,50 +9,63 @@ import ru.EndpointHitDtoRequest;
 import ru.EndpointHitStatsProjection;
 import ru.StatDtoResponse;
 import ru.practicum.mapper.EndpointDtoMapper;
+import ru.practicum.model.EndpointHit;
 import ru.practicum.storage.StatsRepository;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class StatsServiceImpl implements StatsService {
 
     private final StatsRepository statsRepository;
 
+    @Override
     @Transactional
     public void create(EndpointHitDtoRequest dto) {
-        statsRepository.save(EndpointDtoMapper.mapDtoToEntity(dto));
+        String normalizedUri = normalizeUri(dto.getUri());
+        EndpointHit hit = EndpointDtoMapper.mapDtoToEntity(dto);
+        hit.setUri(normalizedUri);
+        hit.setTimestamp(LocalDateTime.now());
+        statsRepository.save(hit);
     }
 
+    @Override
     public List<StatDtoResponse> getStats(LocalDateTime start, LocalDateTime end,
-                                           List<String> uris, Boolean unique) {
+                                          List<String> uris, Boolean unique) {
+
+        if (start.isAfter(LocalDateTime.now())) {
+            throw new ValidationException("Start date cannot be in the future");
+        }
+
+        if (end.isAfter(LocalDateTime.now().plusYears(1))) {
+            throw new ValidationException("End date too far in the future");
+        }
+        // Добавляем логирование для отладки
+        log.info("Getting stats for: start={}, end={}, uris={}, unique={}", start, end, uris, unique);
 
         List<EndpointHitStatsProjection> resultList;
 
-        if (Objects.isNull(uris) || uris.isEmpty()) {
-
-            if (!unique) {
-                log.info("Выполнение метода findAllNoUrisFalseUnique");
-                resultList = statsRepository.findAllNotUrisFalseUnique(start, end);
-            } else {
-                log.info("Выполнение метода findAllNoUrisTrueUnique");
-                resultList = statsRepository.findAllNotUrisTrueUnique(start, end);
-            }
-
+        if (uris == null || uris.isEmpty()) {
+            resultList = Boolean.TRUE.equals(unique) ?
+                    statsRepository.findAllNotUrisTrueUnique(start, end) :
+                    statsRepository.findAllNotUrisFalseUnique(start, end);
         } else {
+            // Преобразуем URI перед поиском
+            List<String> searchUris = uris.stream()
+                    .map(this::normalizeUri)
+                    .collect(Collectors.toList());
 
-            if (!unique) {
-                log.info("Выполнение метода findAllYesUrisFalseUnique");
-                resultList = statsRepository.findAllWithUrisFalseUnique(start, end, uris);
-            } else {
-                log.info("Выполнение метода findAllYesUrisTrueUnique");
-                resultList = statsRepository.findAllWithUrisTrueUnique(start, end, uris);
-            }
+            log.info("Searching for normalized URIs: {}", searchUris);
 
+            resultList = Boolean.TRUE.equals(unique) ?
+                    statsRepository.findAllWithUrisTrueUnique(start, end, searchUris) :
+                    statsRepository.findAllWithUrisFalseUnique(start, end, searchUris);
         }
 
         return resultList.stream()
@@ -60,6 +74,31 @@ public class StatsServiceImpl implements StatsService {
                         .uri(stat.getUri())
                         .hits(stat.getHits())
                         .build())
-                .toList();
+                .sorted(Comparator.comparingLong(StatDtoResponse::getHits).reversed())
+                .collect(Collectors.toList());
+    }
+
+    private String normalizeUri(String uri) {
+        if (uri == null) return null;
+
+        if (uri.startsWith("/events/")) {
+            String[] parts = uri.split("/");
+            if (parts.length >= 3) {
+                String idPart = parts[2];
+                try {
+                    // Преобразование UUID в числовой ID
+                    UUID uuid = UUID.fromString(idPart);
+                    int numericId = uuid.hashCode() & Integer.MAX_VALUE;
+                    return "/events/" + numericId;
+                } catch (IllegalArgumentException e) {
+                    // Если не UUID, проверяем числовой ID
+                    if (idPart.matches("\\d+")) {
+                        return uri; // Оставляем как есть для числовых ID
+                    }
+                    throw new ValidationException("Invalid event ID format: " + idPart);
+                }
+            }
+        }
+        return uri;
     }
 }

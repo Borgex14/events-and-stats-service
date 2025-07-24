@@ -13,7 +13,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 import ru.EndpointHitDtoRequest;
 import ru.StatDtoResponse;
 import ru.practicum.exception.InternalErrorException;
-import ru.practicum.exception.NotFoundException;
 import ru.practicum.exception.ValidationException;
 
 import java.time.LocalDateTime;
@@ -30,52 +29,55 @@ public class StatsClient {
         this.serverUrl = serverUrl;
     }
 
-    public ResponseEntity<List<StatDtoResponse>> findStats(LocalDateTime start, LocalDateTime end,
-                                                               List<String> uris, Boolean unique) {
-        String uri = UriComponentsBuilder.fromHttpUrl(serverUrl)
-                .path("/stats")
-                .queryParam("start", start)
-                .queryParam("end", end)
-                .queryParam("uris", uris)
-                .queryParam("unique", unique)
-                .toUriString();
+    public ResponseEntity<List<StatDtoResponse>> getStats(LocalDateTime start, LocalDateTime end,
+                                                          List<String> uris, Boolean unique) {
+        try {
+            if (start == null || end == null) {
+                throw new ValidationException("Start and end dates are required");
+            }
 
-        ResponseEntity<List<StatDtoResponse>> response = restTemplate.exchange(uri, HttpMethod.GET,
-                null, new ParameterizedTypeReference<>() {});
+            if (start.isAfter(end)) {
+                throw new ValidationException("Start date must be before end date");
+            }
 
-        if (response.getStatusCode().value() == 404) {
-            throw new NotFoundException("Ошибка при записи события (метод hit)");
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(serverUrl)
+                    .path("/stats")
+                    .queryParam("start", start)
+                    .queryParam("end", end);
 
-        } else if (response.getStatusCode().value() == 400) {
-            throw new ValidationException("Ошибка при записи события(метод hit)");
+            if (uris != null && !uris.isEmpty()) {
+                builder.queryParam("uris", String.join(",", uris));
+            }
 
-        } else if (response.getStatusCode().is5xxServerError()) {
-            throw new InternalErrorException("Ошибка при записи события(метод hit)");
+            if (unique != null) {
+                builder.queryParam("unique", unique);
+            }
+
+            return restTemplate.exchange(
+                    builder.toUriString(),
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<List<StatDtoResponse>>() {}
+            );
+        } catch (Exception e) {
+            throw new InternalErrorException("Error getting stats: " + e.getMessage());
         }
-
-        return response;
     }
 
     public void hit(EndpointHitDtoRequest dto) {
-        String uri = UriComponentsBuilder.fromHttpUrl(serverUrl)
-                .path("/hit")
-                .toUriString();
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<EndpointHitDtoRequest> entity = new HttpEntity<>(dto, headers);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<EndpointHitDtoRequest> entity = new HttpEntity<>(dto, headers);
-
-        ResponseEntity<Void> response = restTemplate.exchange(uri, HttpMethod.POST, entity, Void.class);
-
-        if (response.getStatusCode().value() == 404) {
-            throw new NotFoundException("Ошибка при записи события (метод hit)");
-
-        } else if (response.getStatusCode().value() == 400) {
-            throw new ValidationException("Ошибка при записи события(метод hit)");
-
-        } else if (response.getStatusCode().is5xxServerError()) {
-            throw new InternalErrorException("Ошибка при записи события(метод hit)");
+            restTemplate.exchange(
+                    serverUrl + "/hit",
+                    HttpMethod.POST,
+                    entity,
+                    Void.class
+            );
+        } catch (Exception e) {
+            throw new InternalErrorException("Error saving hit: " + e.getMessage());
         }
-
     }
 }

@@ -10,11 +10,18 @@
     </parent>
 
     <artifactId>stats-service</artifactId>
+    <packaging>pom</packaging>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+
+    <modules>
+        <module>stats-client</module>
+        <module>stats-server</module>
+        <module>stats-dto</module>
+    </modules>
 
 </project>
