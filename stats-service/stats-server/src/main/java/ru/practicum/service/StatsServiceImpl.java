@@ -13,7 +13,6 @@ import ru.practicum.model.EndpointHit;
 import ru.practicum.storage.StatsRepository;
 
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -46,6 +45,7 @@ public class StatsServiceImpl implements StatsService {
         if (end.isAfter(LocalDateTime.now().plusYears(1))) {
             throw new ValidationException("End date too far in the future");
         }
+
         log.info("Getting stats for: start={}, end={}, uris={}, unique={}", start, end, uris, unique);
 
         List<EndpointHitStatsProjection> resultList;
@@ -99,6 +99,7 @@ public class StatsServiceImpl implements StatsService {
                 }
             }
         }
+
         return uri;
     }
 }

@@ -15,5 +15,4 @@ public class EndpointDtoMapper {
                 .timestamp(dto.getTimestamp())
                 .build();
     }
-
 }

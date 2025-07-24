@@ -20,7 +20,6 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class EndpointHit {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
