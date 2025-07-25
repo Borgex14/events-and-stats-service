@@ -34,7 +34,7 @@ public class StatsController {
     }
 
     @GetMapping("/stats")
-    public List<StatDtoResponse> findStats(
+    public List<StatDtoResponse> getStats(
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime start,
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime end,
             @RequestParam(required = false) List<String> uris,

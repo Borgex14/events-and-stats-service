@@ -13,7 +13,6 @@ import ru.practicum.exception.InternalErrorException;
 import ru.practicum.exception.NotFoundException;
 import ru.practicum.exception.ValidationException;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
