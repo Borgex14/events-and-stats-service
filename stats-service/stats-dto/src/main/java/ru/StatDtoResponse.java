@@ -1,19 +1,14 @@
 package ru;
 
-import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.experimental.FieldDefaults;
 
-@Builder
-@Getter
-@AllArgsConstructor
+@Data
 @NoArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
+@AllArgsConstructor
 public class StatDtoResponse {
-    String app;
-    String uri;
-    Long hits;
+    private String app;
+    private String uri;
+    private Long hits;
 }
