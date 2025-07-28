@@ -129,22 +129,23 @@ public class EventServiceImpl implements EventService {
             throw new NotFoundException("findEventByIdPublic: Событие " + eventId + " не опубликовано");
         }
 
-        hit(httpServletRequest);
+        Long views = 0L;
+        try {
+            ResponseEntity<List<StatDtoResponse>> statsResponse = statsClient.getStats(
+                    event.getPublishedOn(),
+                    LocalDateTime.now(),
+                    List.of("/events/" + eventId),
+                    true
+            );
+            views = statsResponse.getBody() != null && !statsResponse.getBody().isEmpty()
+                    ? statsResponse.getBody().getFirst().getHits()
+                    : 0L;
+        } catch (Exception e) {
+            log.error("Ошибка при запросе статистики", e);
+        }
 
-        ResponseEntity<List<StatDtoResponse>> statsResponse = statsClient.getStats(
-                event.getPublishedOn(),
-                LocalDateTime.now(),
-                List.of("/events/" + eventId),
-                true
-        );
-
-        List<StatDtoResponse> stats = statsResponse.getBody() != null ? statsResponse.getBody() : Collections.emptyList();
-
-        log.info("Метод findEventByIdPublic, длина списка stats: {}", stats.size());
-        Long views = stats.isEmpty() ? 0L : stats.getFirst().getHits();
         event.setViews(views);
-
-        log.info("Метод findEventByIdPublic, количество сохраняемых просмотров: {}", views);
+        eventRepository.save(event);  // Сохраняем обновлённые views
 
         return eventMapper.toFullDto(event);
     }
