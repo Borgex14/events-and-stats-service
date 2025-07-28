@@ -1,11 +1,13 @@
 package ru.practicum;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import ru.EndpointHitDtoRequest;
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
+@Slf4j
 @Service
 public class StatsClient {
 
@@ -70,6 +73,7 @@ public class StatsClient {
     }
 
     public void hit(EndpointHitDtoRequest dto) {
+        log.info("Sending hit to stats-server: {}", dto);
         String uri = UriComponentsBuilder.fromHttpUrl(serverUrl)
                 .path("/hit")
                 .toUriString();
@@ -78,16 +82,32 @@ public class StatsClient {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<EndpointHitDtoRequest> entity = new HttpEntity<>(dto, headers);
 
-        ResponseEntity<Void> response = restTemplate.exchange(uri, HttpMethod.POST, entity, Void.class);
+        try {
+            ResponseEntity<Void> response = restTemplate.exchange(uri, HttpMethod.POST, entity, Void.class);
+            log.info("Hit response: {}", response.getStatusCode());
 
-        if (response.getStatusCode().value() == 404) {
-            throw new NotFoundException("Ошибка при записи события (метод hit)");
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                handleErrorResponse(response.getStatusCode());
+            }
+        } catch (RestClientResponseException e) {
+            log.error("Stats service responded with error: Status={}, Body={}",
+                    e.getStatusCode(), e.getResponseBodyAsString());
+            handleErrorResponse(e.getStatusCode());
+        } catch (Exception e) {
+            log.error("Failed to send hit to stats-server", e);
+            throw new InternalErrorException("Ошибка при записи события (метод hit)");
+        }
+    }
 
-        } else if (response.getStatusCode().value() == 400) {
-            throw new ValidationException("Ошибка при записи события(метод hit)");
-
-        } else if (response.getStatusCode().is5xxServerError()) {
-            throw new InternalErrorException("Ошибка при записи события(метод hit)");
+    private void handleErrorResponse(HttpStatusCode status) {
+        if (status.equals(HttpStatus.NOT_FOUND)) {
+            throw new NotFoundException("Сервис статистики не найден (метод hit)");
+        } else if (status.equals(HttpStatus.BAD_REQUEST)) {
+            throw new ValidationException("Некорректный запрос к сервису статистики (метод hit)");
+        } else if (status.is5xxServerError()) {
+            throw new InternalErrorException("Ошибка сервиса статистики (метод hit)");
+        } else {
+            throw new RuntimeException("Неожиданный ответ от сервиса статистики: " + status);
         }
     }
 }

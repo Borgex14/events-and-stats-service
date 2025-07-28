@@ -313,14 +313,24 @@ public class EventServiceImpl implements EventService {
         return eventMapper.toFullDto(eventRepository.save(event));
     }
 
-    private void hit(HttpServletRequest httpServletRequest) {
-        EndpointHitDtoRequest hitRequest = new EndpointHitDtoRequest(
-                "main-server",
-                httpServletRequest.getRequestURI(),
-                httpServletRequest.getRemoteAddr(),
-                LocalDateTime.now()
-        );
-        statsClient.hit(hitRequest);
+    private void hit(HttpServletRequest request) {
+        String ip = request.getRemoteAddr();
+        String uri = request.getRequestURI();
+        log.info("Trying to record hit - URI: {}, IP: {}", uri, ip);
+
+        try {
+            EndpointHitDtoRequest hitRequest = new EndpointHitDtoRequest(
+                    "main-service",
+                    uri,
+                    ip,
+                    LocalDateTime.now()
+            );
+
+            statsClient.hit(hitRequest);
+            log.info("Hit successfully recorded");
+        } catch (Exception e) {
+            log.error("Failed to record hit", e);
+        }
     }
 
     private void checkEventUpdatePrivate(Event event, Long userId, Long eventId) {
