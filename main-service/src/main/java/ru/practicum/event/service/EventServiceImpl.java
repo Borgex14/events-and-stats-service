@@ -129,23 +129,40 @@ public class EventServiceImpl implements EventService {
             throw new NotFoundException("findEventByIdPublic: Событие " + eventId + " не опубликовано");
         }
 
-        hit(httpServletRequest);
+        try {
+            hit(httpServletRequest);
+        } catch (Exception e) {
+            log.error("Не удалось сохранить информацию о просмотре", e);
+        }
 
-        ResponseEntity<List<StatDtoResponse>> response = statsClient.getStats(
-                event.getPublishedOn(),
-                LocalDateTime.now(),
-                List.of("/events/" + eventId),
-                true
-        );
+        Long views = event.getViews() != null ? event.getViews() : 0;
 
-        List<StatDtoResponse> stats = response.getBody() != null ? response.getBody() : Collections.emptyList();
+        try {
+            ResponseEntity<List<StatDtoResponse>> response = statsClient.getStats(
+                    event.getPublishedOn(),
+                    LocalDateTime.now(),
+                    List.of("/events/" + eventId),
+                    true
+            );
 
-        log.info("Метод findEventByIdPublic, длина списка stats: {}", stats.size());
-        Long views = stats.isEmpty() ? 0L : stats.getFirst().getHits();
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                List<StatDtoResponse> stats = response.getBody();
+                log.info("Метод findEventByIdPublic, длина списка stats: {}", stats.size());
+                if (!stats.isEmpty()) {
+                    views = stats.getFirst().getHits();
+                }
+            } else {
+                log.error("Ошибка при запросе статистики: {}", response.getStatusCode());
+                views++;
+            }
+        } catch (Exception e) {
+            log.error("Ошибка при работе с сервисом статистики", e);
+            views++;
+        }
+
         event.setViews(views);
-
-        log.info("Метод findEventByIdPublic, количество сохраняемых просмотров: {}", views);
         eventRepository.save(event);
+        log.info("Метод findEventByIdPublic, количество сохраняемых просмотров: {}", views);
 
         return eventMapper.toFullDto(event);
     }
