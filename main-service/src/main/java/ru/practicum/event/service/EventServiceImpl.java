@@ -125,7 +125,7 @@ public class EventServiceImpl implements EventService {
         Event event = eventRepository.findById(eventId).orElseThrow(() ->
                 new NotFoundException("findEventByIdPublic: Событие " + eventId + " не найдено"));
 
-        if (event.getState() != State.PUBLISHED) {
+        if (!event.getState().equals(State.PUBLISHED)) {
             throw new NotFoundException("findEventByIdPublic: Событие " + eventId + " не опубликовано");
         }
 
@@ -314,13 +314,14 @@ public class EventServiceImpl implements EventService {
     }
 
     private void hit(HttpServletRequest request) {
+        log.info("Request URI: {}", request.getRequestURI());
         String ip = request.getRemoteAddr();
         String uri = request.getRequestURI();
         log.info("Trying to record hit - URI: {}, IP: {}", uri, ip);
 
         try {
             EndpointHitDtoRequest hitRequest = new EndpointHitDtoRequest(
-                    "main-service",
+                    "main-server",
                     uri,
                     ip,
                     LocalDateTime.now()
@@ -379,7 +380,7 @@ public class EventServiceImpl implements EventService {
                     event.getPublishedOn(),
                     LocalDateTime.now(),
                     List.of("/events/" + event.getId()),
-                    true  // unique=true - только уникальные IP
+                    true
             );
             if (statsResponse.getBody() != null && !statsResponse.getBody().isEmpty()) {
                 return statsResponse.getBody().getFirst().getHits();
