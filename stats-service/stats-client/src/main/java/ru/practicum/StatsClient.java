@@ -1,5 +1,6 @@
 package ru.practicum;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
@@ -25,6 +26,7 @@ public class StatsClient {
     private final RestTemplate restTemplate;
     private final String serverUrl;
 
+    @Autowired
     public StatsClient(@Value("${stats-server.url}") String serverUrl, RestTemplate rest) {
         this.restTemplate = rest;
         this.serverUrl = serverUrl;
