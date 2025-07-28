@@ -122,19 +122,29 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public EventFullDto findEventByIdPublic(Long eventId, HttpServletRequest httpServletRequest) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new NotFoundException("Событие не найдено"));
+        Event event = eventRepository.findById(eventId).orElseThrow(() ->
+                new NotFoundException("findEventByIdPublic: Событие " + eventId + " не найдено"));
 
         if (event.getState() != State.PUBLISHED) {
-            throw new NotFoundException("Событие не опубликовано");
+            throw new NotFoundException("findEventByIdPublic: Событие " + eventId + " не опубликовано");
         }
 
         hit(httpServletRequest);
 
-        Long uniqueViews = getUniqueViews(event);
-        event.setViews(uniqueViews != null ? uniqueViews : event.getViews());
-        log.info("Current views for event {}: {}", eventId, event.getViews());
-        log.info("Unique views from stats: {}", uniqueViews);
+        ResponseEntity<List<StatDtoResponse>> response = statsClient.getStats(
+                event.getPublishedOn(),
+                LocalDateTime.now(),
+                List.of("/events/" + eventId),
+                true
+        );
+
+        List<StatDtoResponse> stats = response.getBody() != null ? response.getBody() : Collections.emptyList();
+
+        log.info("Метод findEventByIdPublic, длина списка stats: {}", stats.size());
+        Long views = stats.isEmpty() ? 0L : stats.getFirst().getHits();
+        event.setViews(views);
+
+        log.info("Метод findEventByIdPublic, количество сохраняемых просмотров: {}", views);
         eventRepository.save(event);
 
         return eventMapper.toFullDto(event);
