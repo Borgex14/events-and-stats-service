@@ -129,7 +129,7 @@ public class EventServiceImpl implements EventService {
             throw new NotFoundException("findEventByIdPublic: Событие " + eventId + " не опубликовано");
         }
 
-        Long views = 0L;
+        long views = 0L;
         try {
             ResponseEntity<List<StatDtoResponse>> statsResponse = statsClient.getStats(
                     event.getPublishedOn(),
@@ -144,7 +144,8 @@ public class EventServiceImpl implements EventService {
             log.error("Ошибка при запросе статистики", e);
         }
 
-        event.setViews(event.getViews() + 1);
+        long currentViews = event.getViews() != null ? event.getViews() : 0L;
+        event.setViews(currentViews + 1);
         eventRepository.save(event);
 
         return eventMapper.toFullDto(event);
@@ -285,7 +286,12 @@ public class EventServiceImpl implements EventService {
         Event event = eventRepository.findById(eventId).orElseThrow(() ->
                 new NotFoundException("Событие с id = " + eventId + " не найдено."));
 
+        if (event.getViews() == null) {
+            event.setViews(0L);
+        }
+
         event = UpdateEventMapper.updateEventAdmin(event, dto, categoryRepository, locationRepository, locationMapper);
+
 
         return eventMapper.toFullDto(eventRepository.save(event));
     }
