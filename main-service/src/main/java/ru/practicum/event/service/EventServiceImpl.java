@@ -122,47 +122,20 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public EventFullDto findEventByIdPublic(Long eventId, HttpServletRequest httpServletRequest) {
-        Event event = eventRepository.findById(eventId).orElseThrow(() ->
-                new NotFoundException("findEventByIdPublic: Событие " + eventId + " не найдено"));
+        log.info("Looking for event with id: {}", eventId);
 
+        Event event = eventRepository.findById(eventId).orElseThrow(() -> {
+            log.warn("Event not found: {}", eventId);
+            return new NotFoundException("Событие " + eventId + " не найдено");
+        });
+
+        log.info("Event state: {}", event.getState());
         if (!event.getState().equals(State.PUBLISHED)) {
-            throw new NotFoundException("findEventByIdPublic: Событие " + eventId + " не опубликовано");
+            log.warn("Attempt to access unpublished event: {}", eventId);
+            throw new NotFoundException("Событие " + eventId + " не опубликовано");
         }
 
-        try {
-            hit(httpServletRequest);
-        } catch (Exception e) {
-            log.error("Не удалось сохранить информацию о просмотре", e);
-        }
-
-        Long views = event.getViews() != null ? event.getViews() : 0;
-
-        try {
-            ResponseEntity<List<StatDtoResponse>> response = statsClient.getStats(
-                    event.getPublishedOn(),
-                    LocalDateTime.now(),
-                    List.of("/events/" + eventId),
-                    true
-            );
-
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                List<StatDtoResponse> stats = response.getBody();
-                log.info("Метод findEventByIdPublic, длина списка stats: {}", stats.size());
-                if (!stats.isEmpty()) {
-                    views = stats.getFirst().getHits();
-                }
-            } else {
-                log.error("Ошибка при запросе статистики: {}", response.getStatusCode());
-                views++;
-            }
-        } catch (Exception e) {
-            log.error("Ошибка при работе с сервисом статистики", e);
-            views++;
-        }
-
-        event.setViews(views);
-        eventRepository.save(event);
-        log.info("Метод findEventByIdPublic, количество сохраняемых просмотров: {}", views);
+        processEventViews(event, httpServletRequest);
 
         return eventMapper.toFullDto(event);
     }
@@ -389,5 +362,30 @@ public class EventServiceImpl implements EventService {
             log.error("Ошибка при запросе статистики", e);
         }
         return null;
+    }
+
+    private void processEventViews(Event event, HttpServletRequest request) {
+        try {
+            hit(request);
+
+            ResponseEntity<List<StatDtoResponse>> response = statsClient.getStats(
+                    event.getPublishedOn(),
+                    LocalDateTime.now(),
+                    List.of("/events/" + event.getId()),
+                    true
+            );
+
+            long views = response.getBody() != null && !response.getBody().isEmpty()
+                    ? response.getBody().get(0).getHits()
+                    : event.getViews() + 1;
+
+            event.setViews(views);
+            eventRepository.save(event);
+
+        } catch (Exception e) {
+            log.error("Error processing views for event {}", event.getId(), e);
+            event.setViews(event.getViews() + 1);
+            eventRepository.save(event);
+        }
     }
 }
