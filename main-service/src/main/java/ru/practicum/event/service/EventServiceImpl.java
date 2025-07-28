@@ -144,8 +144,8 @@ public class EventServiceImpl implements EventService {
             log.error("Ошибка при запросе статистики", e);
         }
 
-        event.setViews(views);
-        eventRepository.save(event);  // Сохраняем обновлённые views
+        event.setViews(event.getViews() + 1);
+        eventRepository.save(event);
 
         return eventMapper.toFullDto(event);
     }
