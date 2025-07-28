@@ -122,30 +122,19 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public EventFullDto findEventByIdPublic(Long eventId, HttpServletRequest httpServletRequest) {
-        Event event = eventRepository.findById(eventId).orElseThrow(() ->
-                new NotFoundException("findEventByIdPublic: Событие " + eventId + " не найдено"));
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new NotFoundException("Событие не найдено"));
 
         if (event.getState() != State.PUBLISHED) {
-            throw new NotFoundException("findEventByIdPublic: Событие " + eventId + " не опубликовано");
+            throw new NotFoundException("Событие не опубликовано");
         }
 
-        long views = 0L;
-        try {
-            ResponseEntity<List<StatDtoResponse>> statsResponse = statsClient.getStats(
-                    event.getPublishedOn(),
-                    LocalDateTime.now(),
-                    List.of("/events/" + eventId),
-                    true
-            );
-            views = statsResponse.getBody() != null && !statsResponse.getBody().isEmpty()
-                    ? statsResponse.getBody().getFirst().getHits()
-                    : 0L;
-        } catch (Exception e) {
-            log.error("Ошибка при запросе статистики", e);
-        }
+        hit(httpServletRequest);
 
-        long currentViews = event.getViews() != null ? event.getViews() : 0L;
-        event.setViews(currentViews + 1);
+        Long uniqueViews = getUniqueViews(event);
+        event.setViews(uniqueViews != null ? uniqueViews : event.getViews());
+        log.info("Current views for event {}: {}", eventId, event.getViews());
+        log.info("Unique views from stats: {}", uniqueViews);
         eventRepository.save(event);
 
         return eventMapper.toFullDto(event);
@@ -172,6 +161,7 @@ public class EventServiceImpl implements EventService {
         entity.setConfirmedRequests(0L);
         entity.setLocation(location);
         entity.setState(State.PENDING);
+        entity.setViews(0L);
 
         Event savedEvent = eventRepository.save(entity);
         log.info("Создано событие {}", savedEvent.getId());
@@ -344,5 +334,22 @@ public class EventServiceImpl implements EventService {
                 throw new ConflictException("Достигнут лимит заявок");
             }
         }
+    }
+
+    private Long getUniqueViews(Event event) {
+        try {
+            ResponseEntity<List<StatDtoResponse>> statsResponse = statsClient.getStats(
+                    event.getPublishedOn(),
+                    LocalDateTime.now(),
+                    List.of("/events/" + event.getId()),
+                    true  // unique=true - только уникальные IP
+            );
+            if (statsResponse.getBody() != null && !statsResponse.getBody().isEmpty()) {
+                return statsResponse.getBody().getFirst().getHits();
+            }
+        } catch (Exception e) {
+            log.error("Ошибка при запросе статистики", e);
+        }
+        return null;
     }
 }
