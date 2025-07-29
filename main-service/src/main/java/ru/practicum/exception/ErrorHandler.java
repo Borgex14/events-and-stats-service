@@ -1,11 +1,13 @@
 package ru.practicum.exception;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice
+@Slf4j
+@RestControllerAdvice(basePackages = "ru.practicum")
 public class ErrorHandler {
 
     @ExceptionHandler(ValidationException.class)
@@ -15,11 +17,24 @@ public class ErrorHandler {
 
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ErrorResponse> handlerNotFoundException(NotFoundException e) {
-        return new ResponseEntity<>(new ErrorResponse("Not found exception", e.getMessage()), HttpStatus.NOT_FOUND);
+        log.error("NotFoundException handled: {}", e.getMessage());
+        return new ResponseEntity<>(
+                new ErrorResponse("Not found exception", e.getMessage()),
+                HttpStatus.NOT_FOUND
+        );
     }
 
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ErrorResponse> handlerConflictException(ConflictException e) {
         return new ResponseEntity<>(new ErrorResponse("Conflict exception", e.getMessage()), HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handlerException(Exception e) {
+        log.error("Unhandled exception", e);
+        return new ResponseEntity<>(
+                new ErrorResponse("Internal error", e.getMessage()),
+                HttpStatus.INTERNAL_SERVER_ERROR
+        );
     }
 }

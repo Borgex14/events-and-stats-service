@@ -123,26 +123,28 @@ public class EventServiceImpl implements EventService {
     public EventFullDto findEventByIdPublic(Long eventId, HttpServletRequest httpServletRequest) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Событие " + eventId + " не найдено"));
-        log.info("Запрошено событие ID: {}", eventId);
-        log.info("Состояние события: {}", event.getState());
-        log.info("Просмотры до обновления: {}", event.getViews());
-        if (event.getViews() == null) {
-            event.setViews(0L);
-        }
-        event.setViews(event.getViews() + 1);
-        event = eventRepository.save(event);
 
-        log.info("Event state: {}", event.getState());
+        if (event.getState() != State.PUBLISHED) {
+            throw new NotFoundException("Событие " + eventId + " не опубликовано");
+        }
+
+        log.info("Запрошено событие ID: {}, состояние: {}, просмотры до обновления: {}",
+                eventId, event.getState(), event.getViews());
 
         hit(httpServletRequest);
 
-        List<StatDtoResponse> stats = statsClient.getStats(event.getPublishedOn(),
-                LocalDateTime.now(), List.of("/events/" + eventId), true);
-        log.info("Метод findEventByIdPublic, длина списка stats: {}", stats.size());
-        Long views = stats.isEmpty() ? 0L : stats.getFirst().getHits();
-        event.setViews(views);
+        List<StatDtoResponse> stats = statsClient.getStats(
+                event.getPublishedOn() != null ? event.getPublishedOn() : LocalDateTime.now().minusYears(1),
+                LocalDateTime.now(),
+                List.of(httpServletRequest.getRequestURI()),
+                true
+        );
 
-        log.info("Метод findEventByIdPublic, количество сохраняемых просмотров: {}", views);
+        long views = stats.isEmpty() ? 0 : stats.get(0).getHits();
+        event.setViews(views);
+        eventRepository.save(event);
+
+        log.info("Обновлено количество просмотров: {}", views);
 
         return eventMapper.toFullDto(event);
     }
