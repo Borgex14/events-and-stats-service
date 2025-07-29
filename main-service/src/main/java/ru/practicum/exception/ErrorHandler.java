@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @Slf4j
@@ -16,12 +17,10 @@ public class ErrorHandler {
     }
 
     @ExceptionHandler(NotFoundException.class)
-    public ResponseEntity<ErrorResponse> handlerNotFoundException(NotFoundException e) {
-        log.error("NotFoundException handled: {}", e.getMessage());
-        return new ResponseEntity<>(
-                new ErrorResponse("Not found exception", e.getMessage()),
-                HttpStatus.NOT_FOUND
-        );
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponse handleNotFoundException(NotFoundException e) {
+        log.error("NotFoundException: {}", e.getMessage());
+        return new ErrorResponse("Not found", e.getMessage());
     }
 
     @ExceptionHandler(ConflictException.class)
@@ -29,12 +28,10 @@ public class ErrorHandler {
         return new ResponseEntity<>(new ErrorResponse("Conflict exception", e.getMessage()), HttpStatus.CONFLICT);
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handlerException(Exception e) {
-        log.error("Unhandled exception", e);
-        return new ResponseEntity<>(
-                new ErrorResponse("Internal error", e.getMessage()),
-                HttpStatus.INTERNAL_SERVER_ERROR
-        );
+    @ExceptionHandler
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ErrorResponse handleOtherExceptions(Exception e) {
+        log.error("Internal error", e);
+        return new ErrorResponse("Internal error", e.getMessage());
     }
 }
