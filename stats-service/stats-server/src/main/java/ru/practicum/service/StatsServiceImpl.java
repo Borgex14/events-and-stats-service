@@ -1,15 +1,20 @@
 package ru.practicum.service;
 
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.EndpointHitDtoRequest;
+import ru.EndpointHitStatsProjection;
 import ru.StatDtoResponse;
 import ru.practicum.mapper.EndpointDtoMapper;
 import ru.practicum.storage.StatsRepository;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -17,9 +22,11 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class StatsServiceImpl implements StatsService {
 
     private final StatsRepository statsRepository;
+    private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Transactional
     public void create(EndpointHitDtoRequest dto) {
@@ -27,43 +34,37 @@ public class StatsServiceImpl implements StatsService {
         statsRepository.save(EndpointDtoMapper.mapDtoToEntity(dto));
     }
 
-    public List<StatDtoResponse> getStats(LocalDateTime start, LocalDateTime end, List<String> uris, Boolean unique) {
+    public List<StatDtoResponse> getStats(LocalDateTime start, LocalDateTime end,
+                                          List<String> uris, Boolean unique) {
         validateTime(start, end);
 
-        List<Object[]> results;
+        String defaultUri = "/events";
         if (uris == null || uris.isEmpty()) {
-            results = unique ?
-                    statsRepository.findAllWithUrisFalseUnique(start, end) :
-                    statsRepository.findAllWithUrisFalse(start, end);
-        } else {
-            results = unique ?
-                    statsRepository.findAllWithUrisTrueUnique(start, end, uris) :
-                    statsRepository.findAllWithUrisTrue(start, end, uris);
+            uris = Collections.singletonList(defaultUri);
         }
 
-        log.debug("Found {} results", results.size());
+        List<EndpointHitStatsProjection> results = unique ?
+                statsRepository.findAllWithUrisTrueUnique(start, end, uris) :
+                statsRepository.findAllWithUrisTrue(start, end, uris);
+
+        log.debug("Found {} results for uris: {}", results.size(), uris);
 
         if (results.isEmpty()) {
-            return List.of(
-                    new StatDtoResponse("ewm-main-service",
-                            uris != null && !uris.isEmpty() ? uris.getFirst() : "/events",
-                            0L)
+            return Collections.singletonList(
+                    new StatDtoResponse("ewm-main-service", defaultUri, 0L)
             );
         }
 
         return results.stream()
-                .map(this::mapToStatDtoResponse)
+                .map(proj -> new StatDtoResponse(proj.getApp(), proj.getUri(), proj.getHits()))
                 .collect(Collectors.toList());
     }
 
-    private StatDtoResponse mapToStatDtoResponse(Object[] result) {
-        if (result == null || result.length < 3) {
-            throw new IllegalStateException("Invalid query result format");
-        }
+    private StatDtoResponse mapProjectionToDto(EndpointHitStatsProjection projection) {
         return new StatDtoResponse(
-                (String) result[0],
-                (String) result[1],
-                ((Number) result[2]).longValue()
+                projection.getApp(),
+                projection.getUri(),
+                projection.getHits()
         );
     }
 

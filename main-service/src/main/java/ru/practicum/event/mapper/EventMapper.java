@@ -15,7 +15,9 @@ import java.util.List;
 
 @Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = MappingConstants.ComponentModel.SPRING)
 public interface EventMapper {
-
+    @Mapping(target = "category", source = "event.category")
+    @Mapping(target = "initiator", source = "event.initiator")
+    @Mapping(target = "location", source = "event.location")
     EventFullDto toFullDto(Event event);
 
     EventShortDto toShortDto(Event event);

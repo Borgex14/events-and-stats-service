@@ -9,7 +9,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import ru.EndpointHitDtoRequest;
 import ru.StatDtoResponse;
@@ -122,12 +121,16 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public EventFullDto findEventByIdPublic(Long eventId, HttpServletRequest httpServletRequest) {
-        log.info("Looking for event with id: {}", eventId);
-
-        Event event = eventRepository.findById(eventId).orElseThrow(() -> {
-            log.warn("Event not found: {}", eventId);
-            return new NotFoundException("Событие " + eventId + " не найдено");
-        });
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new NotFoundException("Событие " + eventId + " не найдено"));
+        log.info("Запрошено событие ID: {}", eventId);
+        log.info("Состояние события: {}", event.getState());
+        log.info("Просмотры до обновления: {}", event.getViews());
+        if (event.getViews() == null) {
+            event.setViews(0L);
+        }
+        event.setViews(event.getViews() + 1);
+        event = eventRepository.save(event);
 
         log.info("Event state: {}", event.getState());
         if (!event.getState().equals(State.PUBLISHED)) {
@@ -287,23 +290,16 @@ public class EventServiceImpl implements EventService {
     }
 
     private void hit(HttpServletRequest request) {
-        log.info("Request URI: {}", request.getRequestURI());
-        String ip = request.getRemoteAddr();
-        String uri = request.getRequestURI();
-        log.info("Trying to record hit - URI: {}, IP: {}", uri, ip);
-
         try {
-            EndpointHitDtoRequest hitRequest = new EndpointHitDtoRequest(
-                    "main-server",
-                    uri,
-                    ip,
+            log.info("Отправка статистики для URI: {}", request.getRequestURI());
+            statsClient.hit(new EndpointHitDtoRequest(
+                    "ewm-main-service",
+                    request.getRequestURI(),
+                    request.getRemoteAddr(),
                     LocalDateTime.now()
-            );
-
-            statsClient.hit(hitRequest);
-            log.info("Hit successfully recorded");
+            ));
         } catch (Exception e) {
-            log.error("Failed to record hit", e);
+            log.error("Ошибка при отправке статистики", e);
         }
     }
 
@@ -347,45 +343,18 @@ public class EventServiceImpl implements EventService {
         }
     }
 
-    private Long getUniqueViews(Event event) {
-        try {
-            ResponseEntity<List<StatDtoResponse>> statsResponse = statsClient.getStats(
-                    event.getPublishedOn(),
-                    LocalDateTime.now(),
-                    List.of("/events/" + event.getId()),
-                    true
-            );
-            if (statsResponse.getBody() != null && !statsResponse.getBody().isEmpty()) {
-                return statsResponse.getBody().getFirst().getHits();
-            }
-        } catch (Exception e) {
-            log.error("Ошибка при запросе статистики", e);
-        }
-        return null;
-    }
-
     private void processEventViews(Event event, HttpServletRequest request) {
         try {
             hit(request);
 
-            ResponseEntity<List<StatDtoResponse>> response = statsClient.getStats(
-                    event.getPublishedOn(),
+            List<StatDtoResponse> stats = statsClient.getStats(
+                    event.getPublishedOn() != null ? event.getPublishedOn() : LocalDateTime.now().minusYears(1),
                     LocalDateTime.now(),
                     List.of("/events/" + event.getId()),
                     true
             );
-
-            long views = response.getBody() != null && !response.getBody().isEmpty()
-                    ? response.getBody().get(0).getHits()
-                    : event.getViews() + 1;
-
-            event.setViews(views);
-            eventRepository.save(event);
-
         } catch (Exception e) {
             log.error("Error processing views for event {}", event.getId(), e);
-            event.setViews(event.getViews() + 1);
-            eventRepository.save(event);
         }
     }
 }
