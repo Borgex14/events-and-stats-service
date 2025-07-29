@@ -133,12 +133,16 @@ public class EventServiceImpl implements EventService {
         event = eventRepository.save(event);
 
         log.info("Event state: {}", event.getState());
-        if (!event.getState().equals(State.PUBLISHED)) {
-            log.warn("Attempt to access unpublished event: {}", eventId);
-            throw new NotFoundException("Событие " + eventId + " не опубликовано");
-        }
 
-        processEventViews(event, httpServletRequest);
+        hit(httpServletRequest);
+
+        List<StatDtoResponse> stats = statsClient.getStats(event.getPublishedOn(),
+                LocalDateTime.now(), List.of("/events/" + eventId), true);
+        log.info("Метод findEventByIdPublic, длина списка stats: {}", stats.size());
+        Long views = stats.isEmpty() ? 0L : stats.getFirst().getHits();
+        event.setViews(views);
+
+        log.info("Метод findEventByIdPublic, количество сохраняемых просмотров: {}", views);
 
         return eventMapper.toFullDto(event);
     }
@@ -340,21 +344,6 @@ public class EventServiceImpl implements EventService {
                     && event.getConfirmedRequests() >= event.getParticipantLimit()) {
                 throw new ConflictException("Достигнут лимит заявок");
             }
-        }
-    }
-
-    private void processEventViews(Event event, HttpServletRequest request) {
-        try {
-            hit(request);
-
-            List<StatDtoResponse> stats = statsClient.getStats(
-                    event.getPublishedOn() != null ? event.getPublishedOn() : LocalDateTime.now().minusYears(1),
-                    LocalDateTime.now(),
-                    List.of("/events/" + event.getId()),
-                    true
-            );
-        } catch (Exception e) {
-            log.error("Error processing views for event {}", event.getId(), e);
         }
     }
 }
