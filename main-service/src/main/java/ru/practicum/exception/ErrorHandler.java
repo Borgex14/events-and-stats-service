@@ -11,34 +11,18 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class ErrorHandler {
 
     @ExceptionHandler(ValidationException.class)
-    public ResponseEntity<ErrorResponse> handleValidationException(ValidationException e) {
-        log.error("Validation error: {}", e.getMessage());
-        return new ResponseEntity<>(
-                new ErrorResponse("Validation error", e.getMessage()),
-                HttpStatus.BAD_REQUEST);
+    public ResponseEntity<ErrorResponse> handlerValidationException(ValidationException e) {
+        return new ResponseEntity<>(new ErrorResponse("Validation exception", e.getMessage()), HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(NotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNotFoundException(NotFoundException e) {
-        log.error("Not found: {}", e.getMessage());
-        return new ResponseEntity<>(
-                new ErrorResponse("Not found", e.getMessage()),
-                HttpStatus.NOT_FOUND);
+    public ResponseEntity<ErrorResponse> handlerNotFoundException(NotFoundException e) {
+        log.error("NotFoundException handled: {}", e.getMessage());
+        return new ResponseEntity<>(new ErrorResponse("Not found exception", e.getMessage()), HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(ConflictException.class)
-    public ResponseEntity<ErrorResponse> handleConflictException(ConflictException e) {
-        log.error("Conflict: {}", e.getMessage());
-        return new ResponseEntity<>(
-                new ErrorResponse("Conflict", e.getMessage()),
-                HttpStatus.CONFLICT);
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleInternalError(Exception e) {
-        log.error("Internal server error: {}", e.getMessage(), e);
-        return new ResponseEntity<>(
-                new ErrorResponse("Internal server error", "Произошла непредвиденная ошибка"),
-                HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<ErrorResponse> handlerConflictException(ConflictException e) {
+        return new ResponseEntity<>(new ErrorResponse("Conflict exception", e.getMessage()), HttpStatus.CONFLICT);
     }
 }
