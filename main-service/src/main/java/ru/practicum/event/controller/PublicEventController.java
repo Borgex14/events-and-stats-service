@@ -7,6 +7,8 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import ru.practicum.event.dto.EventFullDto;
 import ru.practicum.event.dto.EventShortDto;
 import ru.practicum.event.service.EventService;
+import ru.practicum.exception.ErrorResponse;
+import ru.practicum.exception.NotFoundException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -47,7 +51,17 @@ public class PublicEventController {
     }
 
     @GetMapping("/{eventId}")
-    public EventFullDto findEventByIdPublic(@PathVariable Long eventId, HttpServletRequest httpServletRequest) {
-        return eventService.findEventByIdPublic(eventId, httpServletRequest);
+    public ResponseEntity<?> findEventByIdPublic(@PathVariable Long eventId,
+                                                 HttpServletRequest httpServletRequest) {
+        try {
+            EventFullDto event = eventService.findEventByIdPublic(eventId, httpServletRequest);
+            return ResponseEntity.ok(event);
+        } catch (NotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ErrorResponse("Not found", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Internal error", "Ошибка обработки запроса"));
+        }
     }
 }
