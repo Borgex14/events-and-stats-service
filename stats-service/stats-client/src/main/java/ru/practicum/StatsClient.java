@@ -65,15 +65,23 @@ public class StatsClient {
     }
 
     public void hit(EndpointHitDtoRequest dto) {
-        String uri = UriComponentsBuilder.fromHttpUrl(serverUrl)
-                .path("/hit")
-                .toUriString();
+        try {
+            log.info("Sending hit to stats server: {}", dto);
+            String uri = UriComponentsBuilder.fromHttpUrl(serverUrl)
+                    .path("/hit")
+                    .toUriString();
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<EndpointHitDtoRequest> entity = new HttpEntity<>(dto, headers);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<EndpointHitDtoRequest> entity = new HttpEntity<>(dto, headers);
 
-        restTemplate.exchange(uri, HttpMethod.POST, entity, Void.class);
+            ResponseEntity<Void> response = restTemplate.exchange(
+                    uri, HttpMethod.POST, entity, Void.class);
+
+            log.info("Stats server response: {}", response.getStatusCode());
+        } catch (Exception e) {
+            log.error("Failed to send hit to stats server", e);
+        }
     }
 
     private String formatDateTime(LocalDateTime dateTime) {

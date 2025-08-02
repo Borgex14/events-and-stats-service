@@ -11,7 +11,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import ru.EndpointHitDtoRequest;
-import ru.StatDtoResponse;
 import ru.practicum.category.model.Category;
 import ru.practicum.category.repository.CategoryRepository;
 import ru.practicum.event.dto.EventFullDto;
@@ -122,24 +121,24 @@ public class EventServiceImpl implements EventService {
     @Override
     public EventFullDto findEventByIdPublic(Long eventId, HttpServletRequest httpServletRequest) {
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new NotFoundException("Событие не найдено"));
+                .orElseThrow(() -> new NotFoundException("Event not found"));
 
         if (event.getState() != State.PUBLISHED) {
-            throw new NotFoundException("Событие не опубликовано");
+            throw new NotFoundException("Event not published");
         }
 
-        hit(httpServletRequest);
+        try {
+            statsClient.hit(new EndpointHitDtoRequest(
+                    "ewm-main-service",
+                    "/events/" + eventId,
+                    httpServletRequest.getRemoteAddr(),
+                    LocalDateTime.now()
+            ));
+        } catch (Exception e) {
+            log.error("Failed to save stats", e);
+        }
 
-        List<StatDtoResponse> stats = statsClient.getStats(
-                event.getPublishedOn(),
-                LocalDateTime.now(),
-                List.of("/events/" + eventId),
-                true
-        );
-
-        long views = (event.getViews() == null ? 0 : event.getViews()) + 1;
-        event.setViews(views);
-        log.info("Просмотр события ID: {}, текущие просмотры: {}", eventId, views);
+        event.setViews((event.getViews() == null ? 0 : event.getViews()) + 1);
         event = eventRepository.save(event);
 
         return eventMapper.toFullDto(event);
@@ -167,6 +166,7 @@ public class EventServiceImpl implements EventService {
         entity.setLocation(location);
         entity.setState(State.PENDING);
         entity.setViews(0L);
+        entity.setRequestModeration(dto.getRequestModeration() != null ? dto.getRequestModeration() : true);
 
         Event savedEvent = eventRepository.save(entity);
         log.info("Создано событие {}", savedEvent.getId());
@@ -293,7 +293,7 @@ public class EventServiceImpl implements EventService {
 
     private void hit(HttpServletRequest request) {
         try {
-            log.info("Отправка статистики для URI: {}", request.getRequestURI());
+            log.info("Sending hit to stats service: {}", request.getRequestURI());
             statsClient.hit(new EndpointHitDtoRequest(
                     "ewm-main-service",
                     request.getRequestURI(),
@@ -301,7 +301,7 @@ public class EventServiceImpl implements EventService {
                     LocalDateTime.now()
             ));
         } catch (Exception e) {
-            log.error("Ошибка при отправке статистики", e);
+            log.error("Failed to send stats", e);
         }
     }
 

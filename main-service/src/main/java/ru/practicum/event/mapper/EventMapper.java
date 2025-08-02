@@ -18,6 +18,11 @@ public interface EventMapper {
     @Mapping(target = "category", source = "event.category")
     @Mapping(target = "initiator", source = "event.initiator")
     @Mapping(target = "location", source = "event.location")
+    @Mapping(target = "confirmedRequests", source = "event.confirmedRequests")
+    @Mapping(target = "views", source = "event.views")
+    @Mapping(target = "createdOn", source = "event.createdOn")
+    @Mapping(target = "publishedOn", source = "event.publishedOn")
+    @Mapping(target = "requestModeration", source = "event.requestModeration")
     EventFullDto toFullDto(Event event);
 
     EventShortDto toShortDto(Event event);
