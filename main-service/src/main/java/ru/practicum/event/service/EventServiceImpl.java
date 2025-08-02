@@ -11,6 +11,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import ru.EndpointHitDtoRequest;
+import ru.StatDtoResponse;
 import ru.practicum.category.model.Category;
 import ru.practicum.category.repository.CategoryRepository;
 import ru.practicum.event.dto.EventFullDto;
@@ -138,6 +139,11 @@ public class EventServiceImpl implements EventService {
             log.error("Failed to save stats", e);
         }
 
+        List<StatDtoResponse> stats = statsClient.getStats(event.getPublishedOn(),
+                LocalDateTime.now(), List.of("/events/" + eventId), true);
+
+        Long views = stats.isEmpty() ? 0L : stats.getFirst().getHits();
+        event.setViews(views);
         event.setViews((event.getViews() == null ? 0 : event.getViews()) + 1);
         event = eventRepository.save(event);
 
