@@ -11,7 +11,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import ru.EndpointHitDtoRequest;
-import ru.StatDtoResponse;
 import ru.practicum.category.model.Category;
 import ru.practicum.category.repository.CategoryRepository;
 import ru.practicum.event.dto.EventFullDto;
@@ -128,13 +127,18 @@ public class EventServiceImpl implements EventService {
             throw new NotFoundException("Event not published");
         }
 
-        hit(httpServletRequest);
+        try {
+            statsClient.hit(new EndpointHitDtoRequest(
+                    "ewm-main-service",
+                    "/events/" + eventId,
+                    httpServletRequest.getRemoteAddr(),
+                    LocalDateTime.now()
+            ));
+        } catch (Exception e) {
+            log.error("Failed to save stats", e);
+        }
 
-        List<StatDtoResponse> stats = statsClient.getStats(event.getPublishedOn(),
-                LocalDateTime.now(), List.of("/events/" + eventId), true);
-
-        Long views = stats.isEmpty() ? 0L : stats.getFirst().getHits();
-        event.setViews(views);
+        event.setViews((event.getViews() == null ? 0 : event.getViews()) + 1);
         event = eventRepository.save(event);
 
         return eventMapper.toFullDto(event);
@@ -287,14 +291,18 @@ public class EventServiceImpl implements EventService {
         return eventMapper.toFullDto(eventRepository.save(event));
     }
 
-    private void hit(HttpServletRequest httpServletRequest) {
-        EndpointHitDtoRequest hitRequest = new EndpointHitDtoRequest(
-                "main-server",
-                httpServletRequest.getRequestURI(),
-                httpServletRequest.getRemoteAddr(),
-                LocalDateTime.now()
-        );
-        statsClient.hit(hitRequest);
+    private void hit(HttpServletRequest request) {
+        try {
+            log.info("Sending hit to stats service: {}", request.getRequestURI());
+            statsClient.hit(new EndpointHitDtoRequest(
+                    "ewm-main-service",
+                    request.getRequestURI(),
+                    request.getRemoteAddr(),
+                    LocalDateTime.now()
+            ));
+        } catch (Exception e) {
+            log.error("Failed to send stats", e);
+        }
     }
 
     private void checkEventUpdatePrivate(Event event, Long userId, Long eventId) {
