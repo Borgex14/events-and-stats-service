@@ -130,7 +130,7 @@ public class EventServiceImpl implements EventService {
                     LocalDateTime.now()
             ));
         } catch (Exception e) {
-            log.error("Failed to save hit to stats server", e);
+            log.error("Не удалось сохранить статистику просмотра для события {}", eventId, e);
         }
 
         try {
@@ -145,7 +145,7 @@ public class EventServiceImpl implements EventService {
                 event.setViews(stats.get(0).getHits());
             }
         } catch (Exception e) {
-            log.error("Stats server error, using fallback increment", e);
+            log.error("Ошибка при получении статистики просмотров для события {}, используем резервное увеличение счетчика", eventId, e);
         }
 
         event = eventRepository.save(event);
@@ -195,11 +195,9 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public EventFullDto findEventByUserPrivate(Long userId, Long eventId) {
-        Optional<Event> event = eventRepository.findByInitiatorIdAndId(userId, eventId);
-        if (event.isEmpty()) {
-            throw new NotFoundException("Событие " + eventId + " не найдено");
-        }
-        return eventMapper.toFullDto(event.get());
+        Event event = eventRepository.findByInitiatorIdAndId(userId, eventId)
+                .orElseThrow(() -> new NotFoundException("Событие с ID " + eventId + " не найдено для пользователя " + userId));
+        return eventMapper.toFullDto(event);
     }
 
     @Override
