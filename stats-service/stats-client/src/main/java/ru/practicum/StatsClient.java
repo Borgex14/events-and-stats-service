@@ -27,14 +27,22 @@ public class StatsClient {
 
     private final RestTemplate restTemplate;
     private final String serverUrl;
+    private final boolean enabled;
 
-    public StatsClient(@Value("${stats-server.url}") String serverUrl, RestTemplate rest) {
+    public StatsClient(@Value("${stats-server.url}") String serverUrl, RestTemplate rest,
+                       @Value("${stats-server.enabled:true}") boolean enabled) {
         this.restTemplate = rest;
         this.serverUrl = serverUrl;
+        this.enabled = enabled;
+        log.info("Stats client initialized. Enabled: {}, serverUrl: {}", enabled, serverUrl);
     }
 
     public List<StatDtoResponse> getStats(LocalDateTime start, LocalDateTime end,
                                           List<String> uris, Boolean unique) {
+        if (!enabled) {
+            log.warn("Stats client is disabled");
+            return Collections.emptyList();
+        }
         log.info("Getting stats from {} to {}, uris: {}, unique: {}", start, end, uris, unique);
             String uri = UriComponentsBuilder.fromHttpUrl(serverUrl)
                     .path("/stats")
@@ -65,6 +73,10 @@ public class StatsClient {
     }
 
     public void hit(EndpointHitDtoRequest dto) {
+        if (!enabled) {
+            log.warn("Stats client is disabled, hit not recorded");
+            return;
+        }
         try {
             log.info("Sending hit to stats server: {}", dto);
             String uri = UriComponentsBuilder.fromHttpUrl(serverUrl)
@@ -85,6 +97,6 @@ public class StatsClient {
     }
 
     private String formatDateTime(LocalDateTime dateTime) {
-        return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        return dateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     }
 }

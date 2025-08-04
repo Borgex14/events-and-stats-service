@@ -1732,6 +1732,8 @@
                           "        const category = await api.addCategory(rnd.getCategory());\r",
                           "        let event = await api.addEvent(user.id, rnd.getEvent(category.id));\r",
                           "        event = await api.publishEvent(event.id);\r",
+                          "        await api.findEvent(event.id)\r",
+                          "        await api.findEvent(event.id)\r",
                           "        pm.collectionVariables.set(\"eid\", event.id)\r",
                           "    } catch(err) {\r",
                           "        console.error(\"Ошибка при подготовке тестовых данных.\", err);\r",

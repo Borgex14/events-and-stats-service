@@ -11,6 +11,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import ru.EndpointHitDtoRequest;
+import ru.StatDtoResponse;
 import ru.practicum.category.model.Category;
 import ru.practicum.category.repository.CategoryRepository;
 import ru.practicum.event.dto.EventFullDto;
@@ -135,12 +136,25 @@ public class EventServiceImpl implements EventService {
                     LocalDateTime.now()
             ));
         } catch (Exception e) {
-            log.error("Failed to save stats", e);
+            log.error("Failed to save hit to stats server", e);
         }
 
-        event.setViews((event.getViews() == null ? 0 : event.getViews()) + 1);
-        event = eventRepository.save(event);
+        try {
+            List<StatDtoResponse> stats = statsClient.getStats(
+                    event.getPublishedOn(),
+                    LocalDateTime.now(),
+                    List.of("/events/" + eventId),
+                    true
+            );
 
+            if (!stats.isEmpty()) {
+                event.setViews(stats.get(0).getHits());
+            }
+        } catch (Exception e) {
+            log.error("Stats server error, using fallback increment", e);
+        }
+
+        event = eventRepository.save(event);
         return eventMapper.toFullDto(event);
     }
 

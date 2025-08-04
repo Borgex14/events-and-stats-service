@@ -95,6 +95,12 @@
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
         </dependency>
+        <!-- Для Maven -->
+        <dependency>
+            <groupId>org.apache.tomcat.embed</groupId>
+            <artifactId>tomcat-embed-core</artifactId>
+            <version>10.1.26</version> <!-- Актуальная версия -->
+        </dependency>
     </dependencies>
 
     <build>
