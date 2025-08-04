@@ -31,7 +31,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public CategoryDto create(NewCategoryDto dto) {
         if (categoryRepository.existsByName(dto.getName())) {
-            throw new ConflictException("Имя категории уже существует");
+            throw new ConflictException(String.format("Категория с именем '%s' уже существует", dto.getName()));
         }
 
         Category category = categoryRepository.save(categoryMapper.toEntity(dto));
@@ -44,7 +44,11 @@ public class CategoryServiceImpl implements CategoryService {
 
         Optional<Category> existingCategory = categoryRepository.findByName(dto.getName());
         if (existingCategory.isPresent() && !existingCategory.get().getId().equals(categoryId)) {
-            throw new ConflictException("Имя категории уже существует");
+            throw new ConflictException(
+                    String.format("Категория с именем '%s' уже существует (ID существующей категории: %d)",
+                            dto.getName(),
+                            existingCategory.get().getId())
+            );
         }
 
         Category category = new Category(categoryId, dto.getName());

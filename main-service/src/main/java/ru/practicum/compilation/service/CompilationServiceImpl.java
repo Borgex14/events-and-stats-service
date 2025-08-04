@@ -39,10 +39,13 @@ public class CompilationServiceImpl implements CompilationService {
 
     @Override
     public CompilationDto findCompilationById(Long compId) {
-        Compilation compilation = compilationRepository.findById(compId).orElseThrow(() ->
-                new NotFoundException("Подборка " + compId + " не найдена"));
-
+        Compilation compilation = findCompilationOrThrow(compId);
         return compilationMapper.toDto(compilation);
+    }
+
+    private Compilation findCompilationOrThrow(Long compId) {
+        return compilationRepository.findById(compId)
+                .orElseThrow(() -> new NotFoundException("Подборка с ID " + compId + " не найдена"));
     }
 
     @Override
@@ -58,8 +61,7 @@ public class CompilationServiceImpl implements CompilationService {
 
     @Override
     public CompilationDto updateCompilation(Long compId, UpdateCompilationDto dto) {
-        Compilation compilation = compilationRepository.findById(compId).orElseThrow(() ->
-                new NotFoundException("Подборка " + compId + " не найдена"));
+        Compilation compilation = findCompilationOrThrow(compId);
 
         if (dto.getEvents() == null) {
             dto.setEvents(new ArrayList<>());
@@ -82,6 +84,7 @@ public class CompilationServiceImpl implements CompilationService {
 
     @Override
     public void deleteCompilation(Long compId) {
+        findCompilationOrThrow(compId);
         compilationRepository.deleteById(compId);
     }
 }
