@@ -31,7 +31,8 @@ public class Event {
     @JoinColumn(name = "category_id")
     Category category;
 
-    Long confirmedRequests;
+    @Column(nullable = false)
+    private Long confirmedRequests = 0L;
 
     LocalDateTime createdOn;
 

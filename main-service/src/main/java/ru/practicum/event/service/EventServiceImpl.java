@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import ru.EndpointHitDtoRequest;
 import ru.StatDtoResponse;
 import ru.practicum.category.model.Category;
@@ -119,9 +120,20 @@ public class EventServiceImpl implements EventService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     @Override
     public EventFullDto findEventByIdPublic(Long eventId, HttpServletRequest httpServletRequest) {
-        Event event = findPublishedEventOrThrow(eventId);
+        // Event event = findPublishedEventOrThrow(eventId);
+        log.debug("Поиск события ID: {}", eventId);
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new NotFoundException("Событие с ID " + eventId + " не найдено"));
+        log.debug("Найдено событие: {}", event);
+        if (event.getState() != State.PUBLISHED) {
+            log.warn("Попытка доступа к неопубликованному событию ID: {}, текущий статус: {}",
+                    eventId, event.getState());
+            throw new NotFoundException("Событие с ID " + eventId + " не опубликовано");
+        }
+
         try {
             statsClient.hit(new EndpointHitDtoRequest(
                     "ewm-main-service",
@@ -147,21 +159,23 @@ public class EventServiceImpl implements EventService {
         } catch (Exception e) {
             log.error("Ошибка при получении статистики просмотров для события {}, используем резервное увеличение счетчика", eventId, e);
         }
-
+        event.setViews(event.getViews() == null ? 1 : event.getViews() + 1);
         event = eventRepository.save(event);
         return eventMapper.toFullDto(event);
     }
 
-    private Event findPublishedEventOrThrow(Long eventId) {
+    /* private Event findPublishedEventOrThrow(Long eventId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Событие с ID " + eventId + " не найдено"));
 
         if (event.getState() != State.PUBLISHED) {
+            log.warn("Попытка доступа к неопубликованному событию ID: {}, текущий статус: {}",
+                    eventId, event.getState());
             throw new NotFoundException("Событие с ID " + eventId + " не опубликовано");
         }
 
         return event;
-    }
+    } */
 
     @Override
     public EventFullDto createEventPrivate(Long userId, NewEventDto dto) {
