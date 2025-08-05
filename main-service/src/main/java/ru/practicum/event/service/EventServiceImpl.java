@@ -123,10 +123,7 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     @Override
     public EventFullDto findEventByIdPublic(Long eventId, HttpServletRequest httpServletRequest) {
-        // Event event = findPublishedEventOrThrow(eventId);
-        log.debug("Поиск события ID: {}", eventId);
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new NotFoundException("Событие с ID " + eventId + " не найдено"));
+        Event event = findPublishedEventOrThrow(eventId);
         log.debug("Найдено событие: {}", event);
         if (event.getState() != State.PUBLISHED) {
             log.warn("Попытка доступа к неопубликованному событию ID: {}, текущий статус: {}",
@@ -164,18 +161,12 @@ public class EventServiceImpl implements EventService {
         return eventMapper.toFullDto(event);
     }
 
-    /* private Event findPublishedEventOrThrow(Long eventId) {
+    private Event findPublishedEventOrThrow(Long eventId) {
+        log.debug("Поиск события ID: {}", eventId);
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Событие с ID " + eventId + " не найдено"));
-
-        if (event.getState() != State.PUBLISHED) {
-            log.warn("Попытка доступа к неопубликованному событию ID: {}, текущий статус: {}",
-                    eventId, event.getState());
-            throw new NotFoundException("Событие с ID " + eventId + " не опубликовано");
-        }
-
         return event;
-    } */
+    }
 
     @Override
     public EventFullDto createEventPrivate(Long userId, NewEventDto dto) {
