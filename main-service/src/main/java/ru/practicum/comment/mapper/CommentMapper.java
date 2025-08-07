@@ -2,8 +2,6 @@ package ru.practicum.comment.mapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.MappingConstants;
-import org.mapstruct.ReportingPolicy;
 import ru.practicum.comment.dto.CommentDtoRequest;
 import ru.practicum.comment.dto.CommentDtoResponse;
 import ru.practicum.comment.model.Comment;
@@ -13,9 +11,11 @@ import ru.practicum.user.model.User;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = MappingConstants.ComponentModel.SPRING)
+@Mapper(componentModel = "spring")
 public interface CommentMapper {
 
+    @Mapping(target = "user", source = "user")
+    @Mapping(target = "event", source = "event")
     CommentDtoResponse toDto(Comment comment);
 
     List<CommentDtoResponse> toDto(List<Comment> comments);
