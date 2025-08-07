@@ -27,7 +27,7 @@ services:
     ports:
       - "5432:5432"
 
-  main-service:
+  ewm-service:
     build: main-service
     container_name: main-service
     ports:
@@ -37,7 +37,8 @@ services:
           condition: service_healthy
     environment:
         - SPRING_PROFILES_ACTIVE=docker
-        - SPRING_LIQUIBASE_ENABLED=false
+        - SPRING_LIQUIBASE_ENABLED=true
+        - SPRING_JPA_HIBERNATE_DDL_AUTO=update
         - SPRING_DATASOURCE_INITIALIZATION_ORDER=before_hibernate
         - SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT=120000
         - SPRING_DATASOURCE_URL=jdbc:postgresql://ewm-db:5432/main
