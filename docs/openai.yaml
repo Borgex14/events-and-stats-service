@@ -1,0 +1,1863 @@
+openapi: 3.0.3
+info:
+  title: Events and Stats Service API
+  description: |
+    Микросервисная платформа для сбора статистики и управления событиями.
+    Сервис предоставляет API для отслеживания посещений эндпоинтов, управления событиями,
+    пользователями, категориями и комментариями.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@events-service.ru
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://api.events-service.ru
+    description: Production server
+
+paths:
+  # ==================== Statistics Endpoints ====================
+  /hit:
+    post:
+      summary: Зарегистрировать обращение к эндпоинту
+      description: Сохраняет информацию о обращении к конкретному эндпоинту приложения
+      operationId: createHit
+      tags:
+        - Statistics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndpointHitDtoRequest'
+            examples:
+              basicHit:
+                summary: Пример обращения
+                value:
+                  app: "ewm-main-service"
+                  uri: "/events/1"
+                  ip: "192.168.1.1"
+                  timestamp: "2024-01-15 14:30:00"
+      responses:
+        '201':
+          description: Обращение успешно зарегистрировано
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /stats:
+    get:
+      summary: Получить статистику по обращениям
+      description: |
+        Возвращает статистику по обращениям к эндпоинтам за указанный период времени.
+        Поддерживает фильтрацию по URI и уникальным IP-адресам.
+      operationId: getStats
+      tags:
+        - Statistics
+      parameters:
+        - name: start
+          in: query
+          required: true
+          description: Дата и время начала диапазона статистики
+          schema:
+            type: string
+            format: date-time
+            example: "2024-01-01 00:00:00"
+        - name: end
+          in: query
+          required: true
+          description: Дата и время окончания диапазона статистики
+          schema:
+            type: string
+            format: date-time
+            example: "2024-01-31 23:59:59"
+        - name: uris
+          in: query
+          required: false
+          description: Список URI для фильтрации (через запятую)
+          schema:
+            type: array
+            items:
+              type: string
+            example: ["/events/1", "/events/2"]
+        - name: unique
+          in: query
+          required: false
+          description: Учитывать только уникальные IP-адреса
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Статистика успешно получена
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StatDtoResponse'
+              examples:
+                statsExample:
+                  summary: Пример статистики
+                  value:
+                    - app: "ewm-main-service"
+                      uri: "/events/1"
+                      hits: 150
+                    - app: "ewm-main-service"
+                      uri: "/events/2"
+                      hits: 75
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  # ==================== Users Endpoints ====================
+  /admin/users:
+    get:
+      summary: Получить список пользователей (Admin)
+      description: Возвращает список пользователей с пагинацией и фильтрацией по ID
+      operationId: findUsers
+      tags:
+        - Users
+      parameters:
+        - name: ids
+          in: query
+          required: false
+          description: Список ID пользователей для фильтрации
+          schema:
+            type: array
+            items:
+              type: integer
+            example: [1, 2, 3]
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Количество элементов, которые нужно пропустить
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Количество элементов на странице
+      responses:
+        '200':
+          description: Список пользователей
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserDto'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+    post:
+      summary: Создать нового пользователя (Admin)
+      description: Создает нового пользователя в системе
+      operationId: createUser
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserDto'
+            examples:
+              newUser:
+                summary: Пример создания пользователя
+                value:
+                  email: "user@example.com"
+                  name: "John Doe"
+      responses:
+        '201':
+          description: Пользователь успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /admin/users/{userId}:
+    delete:
+      summary: Удалить пользователя (Admin)
+      description: Удаляет пользователя по ID
+      operationId: deleteUser
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '204':
+          description: Пользователь успешно удален
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ==================== Categories Endpoints ====================
+  /admin/categories:
+    post:
+      summary: Создать новую категорию (Admin)
+      description: Создает новую категорию для событий
+      operationId: createCategory
+      tags:
+        - Categories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewCategoryDto'
+      responses:
+        '201':
+          description: Категория успешно создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryDto'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+    patch:
+      summary: Обновить категорию (Admin)
+      description: Обновляет информацию о существующей категории
+      operationId: updateCategory
+      tags:
+        - Categories
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewCategoryDto'
+      responses:
+        '200':
+          description: Категория успешно обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryDto'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /admin/categories/{categoryId}:
+    delete:
+      summary: Удалить категорию (Admin)
+      description: Удаляет категорию по ID
+      operationId: deleteCategory
+      tags:
+        - Categories
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '204':
+          description: Категория успешно удалена
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /categories:
+    get:
+      summary: Получить список категорий
+      description: Возвращает список всех категорий с пагинацией
+      operationId: findCategories
+      tags:
+        - Categories
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Список категорий
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryDto'
+
+  /categories/{categoryId}:
+    get:
+      summary: Получить категорию по ID
+      description: Возвращает информацию о категории по её идентификатору
+      operationId: findCategoryById
+      tags:
+        - Categories
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Информация о категории
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryDto'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ==================== Events Endpoints ====================
+  /admin/events:
+    get:
+      summary: Поиск событий (Admin)
+      description: Поиск событий с расширенной фильтрацией для администраторов
+      operationId: findAdminEvents
+      tags:
+        - Events
+      parameters:
+        - name: users
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: integer
+          description: Список ID пользователей для фильтрации
+        - name: states
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [PENDING, PUBLISHED, CANCELED]
+          description: Список состояний событий
+        - name: categories
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: integer
+          description: Список ID категорий
+        - name: rangeStart
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Начало диапазона дат событий
+        - name: rangeEnd
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Конец диапазона дат событий
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Список событий
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventFullDto'
+
+  /admin/events/{eventId}:
+    patch:
+      summary: Обновить событие (Admin)
+      description: Обновление события администратором
+      operationId: updateEventAdmin
+      tags:
+        - Events
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEventAdminRequest'
+      responses:
+        '200':
+          description: Событие успешно обновлено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventFullDto'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /users/{userId}/events:
+    get:
+      summary: Получить события пользователя
+      description: Возвращает список событий, созданных пользователем
+      operationId: findEventsPrivate
+      tags:
+        - Events
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Список событий пользователя
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventShortDto'
+
+    post:
+      summary: Создать новое событие
+      description: Создает новое событие от имени пользователя
+      operationId: createEventPrivate
+      tags:
+        - Events
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewEventDto'
+      responses:
+        '201':
+          description: Событие успешно создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventFullDto'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /users/{userId}/events/{eventId}:
+    get:
+      summary: Получить событие пользователя
+      description: Возвращает полную информацию о событии пользователя
+      operationId: findEventByUserPrivate
+      tags:
+        - Events
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Информация о событии
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventFullDto'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    patch:
+      summary: Обновить событие пользователя
+      description: Обновляет событие, созданное пользователем
+      operationId: updateEventPrivate
+      tags:
+        - Events
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEventUserRequest'
+      responses:
+        '200':
+          description: Событие успешно обновлено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventFullDto'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /events:
+    get:
+      summary: Поиск событий (Public)
+      description: Публичный поиск событий с фильтрацией
+      operationId: findEventsPublic
+      tags:
+        - Events
+      parameters:
+        - name: text
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 7000
+          description: Текст для поиска в аннотации и описании
+        - name: categories
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: integer
+          description: Список ID категорий для фильтрации
+        - name: paid
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Платные/бесплатные события
+        - name: rangeStart
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Начало диапазона дат
+        - name: rangeEnd
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Конец диапазона дат
+        - name: onlyAvailable
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Только события с доступными местами
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [EVENT_DATE, VIEWS]
+          description: Поле для сортировки
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Список событий
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventShortDto'
+
+  /events/{eventId}:
+    get:
+      summary: Получить событие по ID (Public)
+      description: Возвращает полную информацию о событии
+      operationId: findEventByIdPublic
+      tags:
+        - Events
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Информация о событии
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventFullDto'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ==================== Requests Endpoints ====================
+  /users/{userId}/requests:
+    get:
+      summary: Получить заявки пользователя
+      description: Возвращает список заявок пользователя на участие в событиях
+      operationId: findUserRequestsPrivate
+      tags:
+        - Requests
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Список заявок пользователя
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParticipationRequestDto'
+
+    post:
+      summary: Создать заявку на участие
+      description: Создает заявку на участие в событии
+      operationId: createUserRequestPrivate
+      tags:
+        - Requests
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: eventId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '201':
+          description: Заявка успешно создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipationRequestDto'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /users/{userId}/requests/{requestId}/cancel:
+    patch:
+      summary: Отменить заявку
+      description: Отменяет заявку на участие в событии
+      operationId: cancelUserRequestPrivate
+      tags:
+        - Requests
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Заявка успешно отменена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipationRequestDto'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /users/{userId}/events/{eventId}/requests:
+    get:
+      summary: Получить заявки на событие
+      description: Возвращает список заявок на участие в событии пользователя
+      operationId: findEventRequestsPrivate
+      tags:
+        - Requests
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Список заявок на событие
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParticipationRequestDto'
+
+    patch:
+      summary: Обновить статусы заявок
+      description: Обновляет статусы заявок на участие в событии
+      operationId: updateEventRequestPrivate
+      tags:
+        - Requests
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventRequestStatusUpdateRequest'
+      responses:
+        '200':
+          description: Статусы заявок обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRequestStatusUpdateResult'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  # ==================== Compilations Endpoints ====================
+  /admin/compilations:
+    post:
+      summary: Создать подборку событий (Admin)
+      description: Создает новую подборку событий
+      operationId: createCompilation
+      tags:
+        - Compilations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewCompilationDto'
+      responses:
+        '201':
+          description: Подборка успешно создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompilationDto'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /admin/compilations/{compId}:
+    patch:
+      summary: Обновить подборку событий (Admin)
+      description: Обновляет информацию о подборке событий
+      operationId: updateCompilation
+      tags:
+        - Compilations
+      parameters:
+        - name: compId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCompilationDto'
+      responses:
+        '200':
+          description: Подборка успешно обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompilationDto'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    delete:
+      summary: Удалить подборку событий (Admin)
+      description: Удаляет подборку событий по ID
+      operationId: deleteCompilation
+      tags:
+        - Compilations
+      parameters:
+        - name: compId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '204':
+          description: Подборка успешно удалена
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /compilations:
+    get:
+      summary: Получить подборки событий
+      description: Возвращает список подборок событий с пагинацией
+      operationId: findCompilations
+      tags:
+        - Compilations
+      parameters:
+        - name: pinned
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Фильтр по закрепленным подборкам
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Список подборок
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CompilationDto'
+
+  /compilations/{compId}:
+    get:
+      summary: Получить подборку по ID
+      description: Возвращает информацию о подборке событий по ID
+      operationId: findCompilationById
+      tags:
+        - Compilations
+      parameters:
+        - name: compId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Информация о подборке
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompilationDto'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ==================== Comments Endpoints ====================
+  /admin/comments:
+    get:
+      summary: Получить комментарии (Admin)
+      description: Поиск комментариев с расширенной фильтрацией для администраторов
+      operationId: getCommentsAdmin
+      tags:
+        - Comments
+      parameters:
+        - name: users
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: integer
+          description: Список ID пользователей
+        - name: events
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: integer
+          description: Список ID событий
+        - name: rangeStart
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Начало диапазона дат комментариев
+        - name: rangeEnd
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Конец диапазона дат комментариев
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Список комментариев
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommentDtoResponse'
+
+  /admin/comments/{commentId}:
+    delete:
+      summary: Удалить комментарий (Admin)
+      description: Удаляет комментарий по ID (администратор)
+      operationId: deleteCommentAdmin
+      tags:
+        - Comments
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '204':
+          description: Комментарий успешно удален
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /users/{userId}/events/{eventId}/comments:
+    get:
+      summary: Получить комментарии пользователя к событию
+      description: Возвращает комментарии пользователя к конкретному событию
+      operationId: getCommentsByUserIdAndEventId
+      tags:
+        - Comments
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Список комментариев
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommentDtoResponse'
+
+    post:
+      summary: Создать комментарий
+      description: Создает новый комментарий к событию
+      operationId: createComment
+      tags:
+        - Comments
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentDtoRequest'
+      responses:
+        '201':
+          description: Комментарий успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentDtoResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /users/{userId}/events/{eventId}/comments/{commId}:
+    patch:
+      summary: Обновить комментарий
+      description: Обновляет существующий комментарий
+      operationId: updateComment
+      tags:
+        - Comments
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: commId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentDtoRequest'
+      responses:
+        '200':
+          description: Комментарий успешно обновлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentDtoResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    delete:
+      summary: Удалить комментарий
+      description: Удаляет комментарий пользователя
+      operationId: deleteComment
+      tags:
+        - Comments
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: commId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '204':
+          description: Комментарий успешно удален
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /comments:
+    get:
+      summary: Получить комментарий по ID
+      description: Возвращает комментарий по его идентификатору
+      operationId: getCommentById
+      tags:
+        - Comments
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Информация о комментарии
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentDtoResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /comments/events/{eventId}:
+    get:
+      summary: Получить комментарии события
+      description: Возвращает все комментарии к конкретному событию
+      operationId: getCommentsByEventId
+      tags:
+        - Comments
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Список комментариев события
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommentDtoResponse'
+
+components:
+  schemas:
+    # Statistics
+    EndpointHitDtoRequest:
+      type: object
+      required:
+        - app
+        - uri
+        - ip
+      properties:
+        app:
+          type: string
+          description: Идентификатор сервиса
+          example: "ewm-main-service"
+        uri:
+          type: string
+          description: URI эндпоинта
+          example: "/events/1"
+        ip:
+          type: string
+          format: ipv4
+          description: IP-адрес пользователя
+          example: "192.168.1.1"
+        timestamp:
+          type: string
+          format: date-time
+          description: Дата и время обращения
+          example: "2024-01-15 14:30:00"
+
+    StatDtoResponse:
+      type: object
+      required:
+        - app
+        - uri
+        - hits
+      properties:
+        app:
+          type: string
+          description: Идентификатор сервиса
+          example: "ewm-main-service"
+        uri:
+          type: string
+          description: URI эндпоинта
+          example: "/events/1"
+        hits:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Количество обращений
+          example: 150
+
+    # Users
+    UserDto:
+      type: object
+      required:
+        - email
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Уникальный идентификатор пользователя
+          example: 1
+        email:
+          type: string
+          format: email
+          description: Электронная почта
+          example: "user@example.com"
+        name:
+          type: string
+          minLength: 2
+          maxLength: 250
+          description: Имя пользователя
+          example: "John Doe"
+
+    UserShortDto:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "John Doe"
+
+    # Categories
+    CategoryDto:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: "Концерты"
+
+    NewCategoryDto:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: "Концерты"
+
+    # Events
+    EventFullDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        annotation:
+          type: string
+          minLength: 20
+          maxLength: 2000
+          example: "Это аннотация события"
+        category:
+          $ref: '#/components/schemas/CategoryDto'
+        confirmedRequests:
+          type: integer
+          format: int64
+          example: 10
+        createdOn:
+          type: string
+          format: date-time
+          example: "2024-01-15 10:00:00"
+        description:
+          type: string
+          minLength: 20
+          maxLength: 7000
+          example: "Полное описание события"
+        eventDate:
+          type: string
+          format: date-time
+          example: "2024-02-01 18:00:00"
+        initiator:
+          $ref: '#/components/schemas/UserShortDto'
+        location:
+          $ref: '#/components/schemas/LocationDto'
+        paid:
+          type: boolean
+          example: false
+        participantLimit:
+          type: integer
+          format: int32
+          minimum: 0
+          example: 100
+        publishedOn:
+          type: string
+          format: date-time
+          example: "2024-01-20 12:00:00"
+        requestModeration:
+          type: boolean
+          example: true
+        state:
+          type: string
+          enum: [PENDING, PUBLISHED, CANCELED]
+          example: "PUBLISHED"
+        title:
+          type: string
+          minLength: 3
+          maxLength: 120
+          example: "Концерт группы"
+        views:
+          type: integer
+          format: int64
+          example: 150
+
+    EventShortDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        annotation:
+          type: string
+          example: "Краткая аннотация"
+        category:
+          $ref: '#/components/schemas/CategoryDto'
+        confirmedRequests:
+          type: integer
+          format: int64
+          example: 10
+        eventDate:
+          type: string
+          format: date-time
+          example: "2024-02-01 18:00:00"
+        initiator:
+          $ref: '#/components/schemas/UserShortDto'
+        paid:
+          type: boolean
+          example: false
+        title:
+          type: string
+          example: "Концерт группы"
+        views:
+          type: integer
+          format: int64
+          example: 150
+
+    NewEventDto:
+      type: object
+      required:
+        - annotation
+        - category
+        - description
+        - eventDate
+        - location
+        - title
+      properties:
+        annotation:
+          type: string
+          minLength: 20
+          maxLength: 2000
+          example: "Аннотация события"
+        category:
+          type: integer
+          format: int64
+          example: 1
+        description:
+          type: string
+          minLength: 20
+          maxLength: 7000
+          example: "Описание события"
+        eventDate:
+          type: string
+          format: date-time
+          example: "2024-02-01 18:00:00"
+        location:
+          $ref: '#/components/schemas/LocationDto'
+        paid:
+          type: boolean
+          default: false
+          example: false
+        participantLimit:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+          example: 100
+        requestModeration:
+          type: boolean
+          default: true
+          example: true
+        title:
+          type: string
+          minLength: 3
+          maxLength: 120
+          example: "Название события"
+
+    UpdateEventAdminRequest:
+      type: object
+      properties:
+        annotation:
+          type: string
+          minLength: 20
+          maxLength: 2000
+          example: "Обновленная аннотация"
+        category:
+          type: integer
+          format: int64
+          example: 2
+        description:
+          type: string
+          minLength: 20
+          maxLength: 7000
+          example: "Обновленное описание"
+        eventDate:
+          type: string
+          format: date-time
+          example: "2024-02-02 19:00:00"
+        location:
+          $ref: '#/components/schemas/LocationDto'
+        paid:
+          type: boolean
+          example: true
+        participantLimit:
+          type: integer
+          format: int32
+          minimum: 0
+          example: 50
+        requestModeration:
+          type: boolean
+          example: false
+        stateAction:
+          type: string
+          enum: [PUBLISH_EVENT, REJECT_EVENT]
+          example: "PUBLISH_EVENT"
+        title:
+          type: string
+          minLength: 3
+          maxLength: 120
+          example: "Обновленное название"
+
+    UpdateEventUserRequest:
+      type: object
+      properties:
+        annotation:
+          type: string
+          minLength: 20
+          maxLength: 2000
+          example: "Обновленная аннотация"
+        category:
+          $ref: '#/components/schemas/CategoryDto'
+        description:
+          type: string
+          minLength: 20
+          maxLength: 7000
+          example: "Обновленное описание"
+        eventDate:
+          type: string
+          format: date-time
+          example: "2024-02-02 19:00:00"
+        location:
+          $ref: '#/components/schemas/LocationDto'
+        paid:
+          type: boolean
+          example: true
+        participantLimit:
+          type: integer
+          format: int32
+          minimum: 0
+          example: 50
+        requestModeration:
+          type: boolean
+          example: false
+        stateAction:
+          type: string
+          enum: [SEND_TO_REVIEW, CANCEL_REVIEW]
+          example: "SEND_TO_REVIEW"
+        title:
+          type: string
+          minLength: 3
+          maxLength: 120
+          example: "Обновленное название"
+
+    LocationDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        lat:
+          type: number
+          format: float
+          example: 55.7558
+        lon:
+          type: number
+          format: float
+          example: 37.6173
+
+    # Requests
+    ParticipationRequestDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        created:
+          type: string
+          format: date-time
+          example: "2024-01-15 14:30:00"
+        event:
+          type: integer
+          format: int64
+          example: 1
+        requester:
+          type: integer
+          format: int64
+          example: 2
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED, REJECTED, CANCELED]
+          example: "PENDING"
+
+    EventRequestStatusUpdateRequest:
+      type: object
+      required:
+        - requestIds
+        - status
+      properties:
+        requestIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          example: [1, 2, 3]
+        status:
+          type: string
+          enum: [CONFIRMED, REJECTED]
+          example: "CONFIRMED"
+
+    EventRequestStatusUpdateResult:
+      type: object
+      properties:
+        confirmedRequests:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipationRequestDto'
+        rejectedRequests:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipationRequestDto'
+
+    # Compilations
+    CompilationDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventShortDto'
+        pinned:
+          type: boolean
+          example: false
+        title:
+          type: string
+          minLength: 2
+          maxLength: 50
+          example: "Лучшие события недели"
+
+    NewCompilationDto:
+      type: object
+      required:
+        - title
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        events:
+          type: array
+          items:
+            type: integer
+            format: int64
+          example: [1, 2, 3]
+        pinned:
+          type: boolean
+          default: false
+          example: false
+        title:
+          type: string
+          minLength: 2
+          maxLength: 50
+          example: "Новая подборка"
+
+    UpdateCompilationDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        events:
+          type: array
+          items:
+            type: integer
+            format: int64
+          example: [1, 2, 3]
+        pinned:
+          type: boolean
+          example: true
+        title:
+          type: string
+          minLength: 2
+          maxLength: 50
+          example: "Обновленная подборка"
+
+    # Comments
+    CommentDtoRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 7000
+          example: "Это комментарий к событию"
+
+    CommentDtoResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        created:
+          type: string
+          format: date-time
+          example: "2024-01-15 14:30:00"
+        event:
+          $ref: '#/components/schemas/EventShortDto'
+        user:
+          $ref: '#/components/schemas/UserShortDto'
+        text:
+          type: string
+          example: "Текст комментария"
+
+  responses:
+    BadRequestError:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFoundError:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ConflictError:
+      description: Конфликт данных
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalServerError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: Statistics
+    description: API для сбора и получения статистики
+  - name: Users
+    description: Управление пользователями
+  - name: Categories
+    description: Управление категориями событий
+  - name: Events
+    description: Управление событиями
+  - name: Requests
+    description: Управление заявками на участие
+  - name: Compilations
+    description: Управление подборками событий
+  - name: Comments
+    description: Управление комментариями
+
+externalDocs:
+  description: Документация проекта
+  url: https://github.com/Borgex14/events-and-stats-service.git
